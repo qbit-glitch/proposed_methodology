@@ -1,0 +1,27 @@
+# Unified Multi-Task Transformer - Requirements
+# Compatible with Python 3.6+ (tested on 3.6.x, 3.10+)
+
+# Core Deep Learning
+torch>=1.10.0
+torchvision>=0.11.0
+
+# Data Processing
+numpy>=1.19.0
+pillow>=8.0.0
+opencv-python>=4.5.0
+
+# COCO API
+pycocotools>=2.0.0
+
+# Progress and Utilities
+tqdm>=4.50.0
+scipy>=1.5.0
+
+# Visualization
+matplotlib>=3.3.0
+
+# Configuration (for Python 3.6 compatibility)
+dataclasses>=0.6;python_version<"3.7"
+
+# Optional: For optimized training
+# torchmetrics>=0.7.0

@@ -1,0 +1,12 @@
+Optimized Model Evaluation Results
+Generated: 2025-12-17T18:13:25.098331
+Checkpoint: outputs_optimized/checkpoints/best_model.pt
+
+========================================
+
+Detection:
+  mAP@0.5: 0.0000
+
+Segmentation:
+  mIoU: 0.2328
+  Pixel Accuracy: 0.5665
