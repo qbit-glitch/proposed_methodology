@@ -181,30 +181,51 @@ def setup_environment(args):
     print(f"\n🖥️  Device: {device}")
     
     # Auto-configure batch size based on available GPU memory
-    if args.batch_size is None or args.grad_accum is None:
-        # Auto-detect GPU memory
-        if device.type == 'cuda':
-            gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
-            gpu_name = torch.cuda.get_device_name(0)
-            print(f"🎮 GPU: {gpu_name} ({gpu_memory_gb:.1f} GB)")
-        elif device.type == 'mps':
-            gpu_memory_gb = 24.0  # Estimate for Apple Silicon
-        else:
-            gpu_memory_gb = 4.0  # Conservative for CPU
+    # For CUDA, ALWAYS auto-detect to prevent OOM on smaller GPUs
+    if device.type == 'cuda':
+        gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        gpu_name = torch.cuda.get_device_name(0)
+        print(f"🎮 GPU: {gpu_name} ({gpu_memory_gb:.1f} GB)")
         
+        # Get optimal config for this GPU
         batch_config = get_optimal_batch_config(gpu_memory_gb)
         
+        # Only override if user didn't explicitly set
         if args.batch_size is None:
             args.batch_size = batch_config['batch_size']
         if args.grad_accum is None:
             args.grad_accum = batch_config['grad_accum']
         
-        # For 8GB GPUs like RTX 3070, use smaller image size
-        if gpu_memory_gb <= 8 and args.image_size > 384:
-            args.image_size = 384
-            print(f"⚠️ Reducing image size to 384 for {gpu_memory_gb:.0f}GB GPU")
+        # For 8GB or smaller GPUs, FORCE smaller settings to prevent OOM
+        if gpu_memory_gb <= 8:
+            print(f"⚠️ Small GPU detected ({gpu_memory_gb:.0f}GB) - applying memory optimizations...")
+            args.batch_size = 1
+            args.grad_accum = 16
+            if args.image_size > 320:
+                args.image_size = 320
+                print(f"   → Image size reduced to 320")
+            print(f"   → Batch size: 1, Grad accum: 16")
+        elif gpu_memory_gb <= 12:
+            args.batch_size = min(args.batch_size or 2, 2)
+            if args.image_size > 384:
+                args.image_size = 384
+            print(f"   → Batch size: {args.batch_size}, Image size: {args.image_size}")
         
-        print(f"📊 Auto-configured: batch_size={args.batch_size}, grad_accum={args.grad_accum}")
+    elif device.type == 'mps':
+        gpu_memory_gb = 24.0  # Estimate for Apple Silicon
+        batch_config = get_optimal_batch_config(gpu_memory_gb)
+        if args.batch_size is None:
+            args.batch_size = batch_config['batch_size']
+        if args.grad_accum is None:
+            args.grad_accum = batch_config['grad_accum']
+    else:
+        # CPU fallback
+        if args.batch_size is None:
+            args.batch_size = 1
+        if args.grad_accum is None:
+            args.grad_accum = 16
+    
+    print(f"📊 Final config: batch_size={args.batch_size}, grad_accum={args.grad_accum}, image_size={args.image_size}")
     
     return device
 
