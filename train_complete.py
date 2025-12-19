@@ -180,15 +180,29 @@ def setup_environment(args):
     device = get_device()
     print(f"\n🖥️  Device: {device}")
     
-    # Auto-configure batch size for M4 Pro
+    # Auto-configure batch size based on available GPU memory
     if args.batch_size is None or args.grad_accum is None:
-        # Estimate available memory (assume 24GB for M4 Pro)
-        batch_config = get_optimal_batch_config(24.0)
+        # Auto-detect GPU memory
+        if device.type == 'cuda':
+            gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+            gpu_name = torch.cuda.get_device_name(0)
+            print(f"🎮 GPU: {gpu_name} ({gpu_memory_gb:.1f} GB)")
+        elif device.type == 'mps':
+            gpu_memory_gb = 24.0  # Estimate for Apple Silicon
+        else:
+            gpu_memory_gb = 4.0  # Conservative for CPU
+        
+        batch_config = get_optimal_batch_config(gpu_memory_gb)
         
         if args.batch_size is None:
             args.batch_size = batch_config['batch_size']
         if args.grad_accum is None:
             args.grad_accum = batch_config['grad_accum']
+        
+        # For 8GB GPUs like RTX 3070, use smaller image size
+        if gpu_memory_gb <= 8 and args.image_size > 384:
+            args.image_size = 384
+            print(f"⚠️ Reducing image size to 384 for {gpu_memory_gb:.0f}GB GPU")
         
         print(f"📊 Auto-configured: batch_size={args.batch_size}, grad_accum={args.grad_accum}")
     
