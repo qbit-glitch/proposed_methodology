@@ -133,6 +133,10 @@ def parse_args():
         '--no-uncertainty', action='store_true',
         help='Disable uncertainty weighting for losses'
     )
+    parser.add_argument(
+        '--no-vit', action='store_true',
+        help='Disable ViT encoder (saves ~1GB GPU memory, auto-enabled for GPUs < 10GB)'
+    )
     
     # Advanced Optimizations (from optimizations.md)
     parser.add_argument(
@@ -201,10 +205,24 @@ def setup_environment(args):
             print(f"⚠️ Small GPU detected ({gpu_memory_gb:.0f}GB) - applying memory optimizations...")
             args.batch_size = 1
             args.grad_accum = 16
+            if args.image_size > 256:
+                args.image_size = 256
+                print(f"   → Image size reduced to 256")
+            # Auto-disable ViT for small GPUs (saves ~1GB)
+            if not hasattr(args, 'no_vit') or not args.no_vit:
+                args.no_vit = True
+                print(f"   → ViT encoder disabled (saves ~1GB memory)")
+            print(f"   → Batch size: 1, Grad accum: 16")
+        elif gpu_memory_gb <= 10:
+            # 10GB GPUs like RTX 3080
+            args.batch_size = 1
+            args.grad_accum = 8
             if args.image_size > 320:
                 args.image_size = 320
-                print(f"   → Image size reduced to 320")
-            print(f"   → Batch size: 1, Grad accum: 16")
+            if not hasattr(args, 'no_vit') or not args.no_vit:
+                args.no_vit = True
+                print(f"   → ViT encoder disabled (saves ~1GB memory)")
+            print(f"   → Batch size: 1, Image size: {args.image_size}")
         elif gpu_memory_gb <= 12:
             args.batch_size = min(args.batch_size or 2, 2)
             if args.image_size > 384:
@@ -232,10 +250,14 @@ def setup_environment(args):
 
 def create_configs(args, device):
     """Create model and training configurations."""
+    # Check if ViT should be disabled
+    use_vit = not getattr(args, 'no_vit', False)
+    
     # Model config
     model_config = ModelConfig(
         image_size=(args.image_size, args.image_size),
         hidden_dim=args.hidden_dim,
+        use_pretrained_vit=use_vit,  # Disable ViT for small GPUs
     )
     
     # Training config
